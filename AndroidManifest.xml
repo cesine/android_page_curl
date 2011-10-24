@@ -3,7 +3,7 @@
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	package="fi.harism.curl"
 	android:versionCode="1"
-	android:versionName="1.0">
+	android:versionName="1.0" android:installLocation="preferExternal">
 	<!--  Since using API 7 for development, just in case -->
 	<uses-sdk android:minSdkVersion="7" />
    	<application
