@@ -31,6 +31,8 @@ import android.os.Bundle;
  */
 public class CurlActivity extends Activity {
 
+	private Boolean mShowTwoPageBook = false;
+	private int mBorderSize = 0;
 	private CurlView mCurlView;
 
 	@Override
@@ -47,6 +49,8 @@ public class CurlActivity extends Activity {
 		mCurlView.setSizeChangedObserver(new SizeChangedObserver());
 		mCurlView.setCurrentIndex(index);
 		mCurlView.setBackgroundColor(0xFF202830);
+		mCurlView.setRenderLeftPage(false);
+		mCurlView.setMargins(.0f, .0f, .0f, .0f);
 
 		// This is something somewhat experimental. Before uncommenting next
 		// line, please see method comments in CurlView.
@@ -75,8 +79,8 @@ public class CurlActivity extends Activity {
 	 */
 	private class BitmapProvider implements CurlView.BitmapProvider {
 
-		private int[] mBitmapIds = { R.drawable.obama, R.drawable.road_rage,
-				R.drawable.taipei_101, R.drawable.world };
+		private int[] mBitmapIds = { R.drawable.stimulus_1_nonpublic, R.drawable.stimulus_10_nonpublic,
+				R.drawable.stimulus_11_nonpublic, R.drawable.stimulus_12_nonpublic, R.drawable.stimulus_13_nonpublic};
 
 		@Override
 		public Bitmap getBitmap(int width, int height, int index) {
@@ -86,8 +90,8 @@ public class CurlActivity extends Activity {
 			Canvas c = new Canvas(b);
 			Drawable d = getResources().getDrawable(mBitmapIds[index]);
 
-			int margin = 7;
-			int border = 3;
+			int margin = mBorderSize;
+			int border = mBorderSize;
 			Rect r = new Rect(margin, margin, width - margin, height - margin);
 
 			int imageWidth = r.width() - (border * 2);
@@ -129,13 +133,15 @@ public class CurlActivity extends Activity {
 	private class SizeChangedObserver implements CurlView.SizeChangedObserver {
 		@Override
 		public void onSizeChanged(int w, int h) {
-			if (w > h) {
+			if (w > h && mShowTwoPageBook) {
 				mCurlView.setViewMode(CurlView.SHOW_TWO_PAGES);
 				mCurlView.setMargins(.1f, .05f, .1f, .05f);
 			} else {
 				mCurlView.setViewMode(CurlView.SHOW_ONE_PAGE);
 				mCurlView.setMargins(.1f, .1f, .1f, .1f);
 			}
+			mCurlView.setMargins(.0f, .0f, .0f, .0f);
+
 		}
 	}
 
