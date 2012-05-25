@@ -1,5 +1,5 @@
 /*
-   Copyright 2011 Harri Smått
+   Copyright 2012 Harri Smatt
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -12,13 +12,14 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */
 
 package fi.harism.curl;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
@@ -45,7 +46,7 @@ public class CurlActivity extends Activity {
 			index = (Integer) getLastNonConfigurationInstance();
 		}
 		mCurlView = (CurlView) findViewById(R.id.curl);
-		mCurlView.setBitmapProvider(new BitmapProvider());
+		mCurlView.setPageProvider(new PageProvider());
 		mCurlView.setSizeChangedObserver(new SizeChangedObserver());
 		mCurlView.setCurrentIndex(index);
 		mCurlView.setBackgroundColor(0xFF202830);
@@ -77,13 +78,18 @@ public class CurlActivity extends Activity {
 	/**
 	 * Bitmap provider.
 	 */
-	private class BitmapProvider implements CurlView.BitmapProvider {
+	private class PageProvider implements CurlView.PageProvider {
 
-		private int[] mBitmapIds = { R.drawable.stimulus_1_nonpublic, R.drawable.stimulus_10_nonpublic,
-				R.drawable.stimulus_11_nonpublic, R.drawable.stimulus_12_nonpublic, R.drawable.stimulus_13_nonpublic};
+		// Bitmap resources.
+		private int[] mBitmapIds = { R.drawable.obama, R.drawable.road_rage,
+				R.drawable.taipei_101, R.drawable.world };
 
 		@Override
-		public Bitmap getBitmap(int width, int height, int index) {
+		public int getPageCount() {
+			return 5;
+		}
+
+		private Bitmap loadBitmap(int width, int height, int index) {
 			Bitmap b = Bitmap.createBitmap(width, height,
 					Bitmap.Config.ARGB_8888);
 			b.eraseColor(0xFFFFFFFF);
@@ -118,13 +124,59 @@ public class CurlActivity extends Activity {
 
 			d.setBounds(r);
 			d.draw(c);
+
 			return b;
 		}
 
 		@Override
-		public int getBitmapCount() {
-			return mBitmapIds.length;
+		public void updatePage(CurlPage page, int width, int height, int index) {
+
+			switch (index) {
+			// First case is image on front side, solid colored back.
+			case 0: {
+				Bitmap front = loadBitmap(width, height, 0);
+				page.setTexture(front, CurlPage.SIDE_FRONT);
+				page.setColor(Color.rgb(180, 180, 180), CurlPage.SIDE_BACK);
+				break;
+			}
+			// Second case is image on back side, solid colored front.
+			case 1: {
+				Bitmap back = loadBitmap(width, height, 2);
+				page.setTexture(back, CurlPage.SIDE_BACK);
+				page.setColor(Color.rgb(127, 140, 180), CurlPage.SIDE_FRONT);
+				break;
+			}
+			// Third case is images on both sides.
+			case 2: {
+				Bitmap front = loadBitmap(width, height, 1);
+				Bitmap back = loadBitmap(width, height, 3);
+				page.setTexture(front, CurlPage.SIDE_FRONT);
+				page.setTexture(back, CurlPage.SIDE_BACK);
+				break;
+			}
+			// Fourth case is images on both sides - plus they are blend against
+			// separate colors.
+			case 3: {
+				Bitmap front = loadBitmap(width, height, 2);
+				Bitmap back = loadBitmap(width, height, 1);
+				page.setTexture(front, CurlPage.SIDE_FRONT);
+				page.setTexture(back, CurlPage.SIDE_BACK);
+				page.setColor(Color.argb(127, 170, 130, 255),
+						CurlPage.SIDE_FRONT);
+				page.setColor(Color.rgb(255, 190, 150), CurlPage.SIDE_BACK);
+				break;
+			}
+			// Fifth case is same image is assigned to front and back. In this
+			// scenario only one texture is used and shared for both sides.
+			case 4:
+				Bitmap front = loadBitmap(width, height, 0);
+				page.setTexture(front, CurlPage.SIDE_BOTH);
+				page.setColor(Color.argb(127, 255, 255, 255),
+						CurlPage.SIDE_BACK);
+				break;
+			}
 		}
+
 	}
 
 	/**

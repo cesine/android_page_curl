@@ -1,3 +1,18 @@
+NOTE
+====
+
+As of this commit all "pages" will be 2-sided. There's a new class CurlPage, using which
+you can assign a separate texture on both sides, one for front side only, or same
+texture can be shared on both sides. CurlPage contains also color values for blending
+which allows you to e.g share texture on both sides but do alpha blending
+only on back side of the page, leaving you with exactly same effect what earlier
+version of this example application did. This time with the difference there's
+some more freedom included.
+
+Here's an example video from [cags12](https://github.com/cags12) showing 2-sided page support in landscape mode;
+
+[http://www.youtube.com/watch?v=iwu7P5PCpsw]
+
 Introduction
 ============
 Project for implementing 'page curl' effect on Android + OpenGL ES 1.0 (possibly 1.1/2.0 too if there's clear advantage in using them).

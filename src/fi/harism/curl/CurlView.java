@@ -1,5 +1,5 @@
 /*
-   Copyright 2011 Harri Smått
+   Copyright 2012 Harri Smatt
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -12,12 +12,11 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-*/
+ */
 
 package fi.harism.curl;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.opengl.GLSurfaceView;
@@ -33,57 +32,60 @@ import android.view.View;
 public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 		CurlRenderer.Observer {
 
-	// Shows one page at the center of view.
-	public static final int SHOW_ONE_PAGE = 1;
-	// Shows two pages side by side.
-	public static final int SHOW_TWO_PAGES = 2;
-	// One page is the default.
-	private int mViewMode = SHOW_ONE_PAGE;
-
-	private boolean mRenderLeftPage = true;
-	private boolean mAllowLastPageCurl = true;
-
-	// Page meshes. Left and right meshes are 'static' while curl is used to
-	// show page flipping.
-	private CurlMesh mPageCurl;
-	private CurlMesh mPageLeft;
-	private CurlMesh mPageRight;
-
 	// Curl state. We are flipping none, left or right page.
-	private static final int CURL_NONE = 0;
 	private static final int CURL_LEFT = 1;
+	private static final int CURL_NONE = 0;
 	private static final int CURL_RIGHT = 2;
-	private int mCurlState = CURL_NONE;
 
-	// Current page index. This is always showed on right page.
-	private int mCurrentIndex = 0;
-
-	// Bitmap size. These are updated from renderer once it's initialized.
-	private int mPageBitmapWidth = -1;
-	private int mPageBitmapHeight = -1;
-
-	// Start position for dragging.
-	private PointF mDragStartPos = new PointF();
-	private PointerPosition mPointerPos = new PointerPosition();
-	private PointF mCurlPos = new PointF();
-	private PointF mCurlDir = new PointF();
-
-	private boolean mAnimate = false;
-	private PointF mAnimationSource = new PointF();
-	private PointF mAnimationTarget = new PointF();
-	private long mAnimationStartTime;
-	private long mAnimationDurationTime = 300;
-	private int mAnimationTargetEvent;
-	
 	// Constants for mAnimationTargetEvent.
 	private static final int SET_CURL_TO_LEFT = 1;
 	private static final int SET_CURL_TO_RIGHT = 2;
 
-	private CurlRenderer mRenderer;
-	private BitmapProvider mBitmapProvider;
-	private SizeChangedObserver mSizeChangedObserver;
+	// Shows one page at the center of view.
+	public static final int SHOW_ONE_PAGE = 1;
+	// Shows two pages side by side.
+	public static final int SHOW_TWO_PAGES = 2;
+
+	private boolean mAllowLastPageCurl = true;
+
+	private boolean mAnimate = false;
+	private long mAnimationDurationTime = 300;
+	private PointF mAnimationSource = new PointF();
+	private long mAnimationStartTime;
+	private PointF mAnimationTarget = new PointF();
+	private int mAnimationTargetEvent;
+
+	private PointF mCurlDir = new PointF();
+
+	private PointF mCurlPos = new PointF();
+	private int mCurlState = CURL_NONE;
+	// Current bitmap index. This is always showed as front of right page.
+	private int mCurrentIndex = 0;
+
+	// Start position for dragging.
+	private PointF mDragStartPos = new PointF();
 
 	private boolean mEnableTouchPressure = false;
+	// Bitmap size. These are updated from renderer once it's initialized.
+	private int mPageBitmapHeight = -1;
+
+	private int mPageBitmapWidth = -1;
+	// Page meshes. Left and right meshes are 'static' while curl is used to
+	// show page flipping.
+	private CurlMesh mPageCurl;
+
+	private CurlMesh mPageLeft;
+	private PageProvider mPageProvider;
+	private CurlMesh mPageRight;
+
+	private PointerPosition mPointerPos = new PointerPosition();
+
+	private CurlRenderer mRenderer;
+	private boolean mRenderLeftPage = true;
+	private SizeChangedObserver mSizeChangedObserver;
+
+	// One page is the default.
+	private int mViewMode = SHOW_ONE_PAGE;
 
 	/**
 	 * Default constructor.
@@ -109,10 +111,30 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 	}
 
 	/**
-	 * Set current page index.
+	 * Get current page index. Page indices are zero based values presenting
+	 * page being shown on right side of the book.
 	 */
 	public int getCurrentIndex() {
 		return mCurrentIndex;
+	}
+
+	/**
+	 * Initialize method.
+	 */
+	private void init(Context ctx) {
+		mRenderer = new CurlRenderer(this);
+		setRenderer(mRenderer);
+		setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
+		setOnTouchListener(this);
+
+		// Even though left and right pages are static we have to allocate room
+		// for curl on them too as we are switching meshes. Another way would be
+		// to swap texture ids only.
+		mPageLeft = new CurlMesh(10);
+		mPageRight = new CurlMesh(10);
+		mPageCurl = new CurlMesh(10);
+		mPageLeft.setFlipTexture(true);
+		mPageRight.setFlipTexture(false);
 	}
 
 	@Override
@@ -137,7 +159,7 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 				mPageRight = right;
 				// If we were curling left page update current index.
 				if (mCurlState == CURL_LEFT) {
-					mCurrentIndex--;
+					--mCurrentIndex;
 				}
 			} else if (mAnimationTargetEvent == SET_CURL_TO_LEFT) {
 				// Switch curled page to left.
@@ -154,7 +176,7 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 				mPageLeft = left;
 				// If we were curling right page update current index.
 				if (mCurlState == CURL_RIGHT) {
-					mCurrentIndex++;
+					++mCurrentIndex;
 				}
 			}
 			mCurlState = CURL_NONE;
@@ -162,9 +184,8 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			requestRender();
 		} else {
 			mPointerPos.mPos.set(mAnimationSource);
-			float t = (float) Math
-					.sqrt((double) (currentTime - mAnimationStartTime)
-							/ mAnimationDurationTime);
+			float t = 1f - ((float) (currentTime - mAnimationStartTime) / mAnimationDurationTime);
+			t = 1f - (t * t * t * (3 - 2 * t));
 			mPointerPos.mPos.x += (mAnimationTarget.x - mAnimationSource.x) * t;
 			mPointerPos.mPos.y += (mAnimationTarget.y - mAnimationSource.y) * t;
 			updateCurlPos(mPointerPos);
@@ -175,7 +196,7 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 	public void onPageSizeChanged(int width, int height) {
 		mPageBitmapWidth = width;
 		mPageBitmapHeight = height;
-		updateBitmaps();
+		updatePages();
 		requestRender();
 	}
 
@@ -202,7 +223,7 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 	public boolean onTouch(View view, MotionEvent me) {
 		// No dragging during animation at the moment.
 		// TODO: Stop animation on touch event and return to drag mode.
-		if (mAnimate || mBitmapProvider == null) {
+		if (mAnimate || mPageProvider == null) {
 			return false;
 		}
 
@@ -249,11 +270,10 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 				}
 				// Otherwise check pointer is on right page's side.
 				else if (mDragStartPos.x >= rightRect.left
-						&& mCurrentIndex < mBitmapProvider.getBitmapCount()) {
+						&& mCurrentIndex < mPageProvider.getPageCount()) {
 					mDragStartPos.x = rightRect.right;
 					if (!mAllowLastPageCurl
-							&& mCurrentIndex >= mBitmapProvider
-									.getBitmapCount() - 1) {
+							&& mCurrentIndex >= mPageProvider.getPageCount() - 1) {
 						return false;
 					}
 					startCurl(CURL_RIGHT);
@@ -264,11 +284,10 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 					mDragStartPos.x = rightRect.left;
 					startCurl(CURL_LEFT);
 				} else if (mDragStartPos.x >= halfX
-						&& mCurrentIndex < mBitmapProvider.getBitmapCount()) {
+						&& mCurrentIndex < mPageProvider.getPageCount()) {
 					mDragStartPos.x = rightRect.right;
 					if (!mAllowLastPageCurl
-							&& mCurrentIndex >= mBitmapProvider
-									.getBitmapCount() - 1) {
+							&& mCurrentIndex >= mPageProvider.getPageCount() - 1) {
 						return false;
 					}
 					startCurl(CURL_RIGHT);
@@ -347,103 +366,6 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 	}
 
 	/**
-	 * Update/set bitmap provider.
-	 */
-	public void setBitmapProvider(BitmapProvider bitmapProvider) {
-		mBitmapProvider = bitmapProvider;
-		mCurrentIndex = 0;
-		updateBitmaps();
-		requestRender();
-	}
-
-	/**
-	 * Set page index.
-	 */
-	public void setCurrentIndex(int index) {
-		if (mBitmapProvider == null || index <= 0) {
-			mCurrentIndex = 0;
-		} else {
-			mCurrentIndex = Math.min(index,
-					mBitmapProvider.getBitmapCount() - 1);
-		}
-		updateBitmaps();
-		requestRender();
-	}
-
-	/**
-	 * If set to true, touch event pressure information is used to adjust curl
-	 * radius. The more you press, the flatter the curl becomes. This is
-	 * somewhat experimental and results may vary significantly between devices.
-	 * On emulator pressure information seems to be flat 1.0f which is maximum
-	 * value and therefore not very much of use.
-	 */
-	public void setEnableTouchPressure(boolean enableTouchPressure) {
-		mEnableTouchPressure = enableTouchPressure;
-	}
-
-	/**
-	 * Set margins (or padding). Note: margins are proportional. Meaning a value
-	 * of .1f will produce a 10% margin.
-	 */
-	public void setMargins(float left, float top, float right, float bottom) {
-		mRenderer.setMargins(left, top, right, bottom);
-	}
-
-	/**
-	 * Setter for whether left side page is rendered. This is useful mostly for
-	 * situations where right (main) page is aligned to left side of screen and
-	 * left page is not visible anyway.
-	 */
-	public void setRenderLeftPage(boolean renderLeftPage) {
-		mRenderLeftPage = renderLeftPage;
-	}
-
-	/**
-	 * Sets SizeChangedObserver for this View. Call back method is called from
-	 * this View's onSizeChanged method.
-	 */
-	public void setSizeChangedObserver(SizeChangedObserver observer) {
-		mSizeChangedObserver = observer;
-	}
-
-	/**
-	 * Sets view mode. Value can be either SHOW_ONE_PAGE or SHOW_TWO_PAGES. In
-	 * former case right page is made size of display, and in latter case two
-	 * pages are laid on visible area.
-	 */
-	public void setViewMode(int viewMode) {
-		switch (viewMode) {
-		case SHOW_ONE_PAGE:
-			mViewMode = viewMode;
-			mRenderer.setViewMode(CurlRenderer.SHOW_ONE_PAGE);
-			break;
-		case SHOW_TWO_PAGES:
-			mViewMode = viewMode;
-			mRenderer.setViewMode(CurlRenderer.SHOW_TWO_PAGES);
-			break;
-		}
-	}
-
-	/**
-	 * Initialize method.
-	 */
-	private void init(Context ctx) {
-		mRenderer = new CurlRenderer(this);
-		setRenderer(mRenderer);
-		setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
-		setOnTouchListener(this);
-
-		// Even though left and right pages are static we have to allocate room
-		// for curl on them too as we are switching meshes. Another way would be
-		// to swap texture ids only.
-		mPageLeft = new CurlMesh(10);
-		mPageRight = new CurlMesh(10);
-		mPageCurl = new CurlMesh(10);
-		mPageLeft.setFlipTexture(true);
-		mPageRight.setFlipTexture(false);
-	}
-
-	/**
 	 * Sets mPageCurl curl position.
 	 */
 	private void setCurlPos(PointF curlPos, PointF curlDir, double radius) {
@@ -508,7 +430,98 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 	}
 
 	/**
-	 * Switches meshes and loads new bitmaps if available.
+	 * Set current page index. Page indices are zero based values presenting
+	 * page being shown on right side of the book. E.g if you set value to 4;
+	 * right side front facing bitmap will be with index 4, back facing 5 and
+	 * for left side page index 3 is front facing, and index 2 back facing (once
+	 * page is on left side it's flipped over).
+	 * 
+	 * Current index is rounded to closest value divisible with 2.
+	 */
+	public void setCurrentIndex(int index) {
+		if (mPageProvider == null || index < 0) {
+			mCurrentIndex = 0;
+		} else {
+			if (mAllowLastPageCurl) {
+				mCurrentIndex = Math.min(index, mPageProvider.getPageCount());
+			} else {
+				mCurrentIndex = Math.min(index,
+						mPageProvider.getPageCount() - 1);
+			}
+		}
+		updatePages();
+		requestRender();
+	}
+
+	/**
+	 * If set to true, touch event pressure information is used to adjust curl
+	 * radius. The more you press, the flatter the curl becomes. This is
+	 * somewhat experimental and results may vary significantly between devices.
+	 * On emulator pressure information seems to be flat 1.0f which is maximum
+	 * value and therefore not very much of use.
+	 */
+	public void setEnableTouchPressure(boolean enableTouchPressure) {
+		mEnableTouchPressure = enableTouchPressure;
+	}
+
+	/**
+	 * Set margins (or padding). Note: margins are proportional. Meaning a value
+	 * of .1f will produce a 10% margin.
+	 */
+	public void setMargins(float left, float top, float right, float bottom) {
+		mRenderer.setMargins(left, top, right, bottom);
+	}
+
+	/**
+	 * Update/set page provider.
+	 */
+	public void setPageProvider(PageProvider pageProvider) {
+		mPageProvider = pageProvider;
+		mCurrentIndex = 0;
+		updatePages();
+		requestRender();
+	}
+
+	/**
+	 * Setter for whether left side page is rendered. This is useful mostly for
+	 * situations where right (main) page is aligned to left side of screen and
+	 * left page is not visible anyway.
+	 */
+	public void setRenderLeftPage(boolean renderLeftPage) {
+		mRenderLeftPage = renderLeftPage;
+	}
+
+	/**
+	 * Sets SizeChangedObserver for this View. Call back method is called from
+	 * this View's onSizeChanged method.
+	 */
+	public void setSizeChangedObserver(SizeChangedObserver observer) {
+		mSizeChangedObserver = observer;
+	}
+
+	/**
+	 * Sets view mode. Value can be either SHOW_ONE_PAGE or SHOW_TWO_PAGES. In
+	 * former case right page is made size of display, and in latter case two
+	 * pages are laid on visible area.
+	 */
+	public void setViewMode(int viewMode) {
+		switch (viewMode) {
+		case SHOW_ONE_PAGE:
+			mViewMode = viewMode;
+			mPageLeft.setFlipTexture(true);
+			mRenderer.setViewMode(CurlRenderer.SHOW_ONE_PAGE);
+			break;
+		case SHOW_TWO_PAGES:
+			mViewMode = viewMode;
+			mPageLeft.setFlipTexture(false);
+			mRenderer.setViewMode(CurlRenderer.SHOW_TWO_PAGES);
+			break;
+		}
+	}
+
+	/**
+	 * Switches meshes and loads new bitmaps if available. Updated to support 2
+	 * pages in landscape
 	 */
 	private void startCurl(int page) {
 		switch (page) {
@@ -527,9 +540,8 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			mPageRight = mPageCurl;
 			mPageCurl = curl;
 
-			// If there is something to show on left page, simply add it to
-			// renderer.
 			if (mCurrentIndex > 0) {
+				mPageLeft.setFlipTexture(true);
 				mPageLeft
 						.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
 				mPageLeft.reset();
@@ -537,12 +549,8 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 					mRenderer.addCurlMesh(mPageLeft);
 				}
 			}
-
-			// If there is new/next available, set it to right page.
-			if (mCurrentIndex < mBitmapProvider.getBitmapCount() - 1) {
-				Bitmap bitmap = mBitmapProvider.getBitmap(mPageBitmapWidth,
-						mPageBitmapHeight, mCurrentIndex + 1);
-				mPageRight.setBitmap(bitmap);
+			if (mCurrentIndex < mPageProvider.getPageCount() - 1) {
+				updatePage(mPageRight.getTexturePage(), mCurrentIndex + 1);
 				mPageRight.setRect(mRenderer
 						.getPageRect(CurlRenderer.PAGE_RIGHT));
 				mPageRight.setFlipTexture(false);
@@ -560,9 +568,9 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			break;
 		}
 
-			// On left side curl, left page is assigned to curled page. And if
-			// there are more bitmaps available before currentIndex, new bitmap
-			// is loaded into left page.
+		// On left side curl, left page is assigned to curled page. And if
+		// there are more bitmaps available before currentIndex, new bitmap
+		// is loaded into left page.
 		case CURL_LEFT: {
 			// Remove meshes from renderer.
 			mRenderer.removeCurlMesh(mPageLeft);
@@ -574,14 +582,11 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			mPageLeft = mPageCurl;
 			mPageCurl = curl;
 
-			// If there is new/previous bitmap available load it to left page.
 			if (mCurrentIndex > 1) {
-				Bitmap bitmap = mBitmapProvider.getBitmap(mPageBitmapWidth,
-						mPageBitmapHeight, mCurrentIndex - 2);
-				mPageLeft.setBitmap(bitmap);
+				updatePage(mPageLeft.getTexturePage(), mCurrentIndex - 2);
+				mPageLeft.setFlipTexture(true);
 				mPageLeft
 						.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
-				mPageLeft.setFlipTexture(true);
 				mPageLeft.reset();
 				if (mRenderLeftPage) {
 					mRenderer.addCurlMesh(mPageLeft);
@@ -589,7 +594,8 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			}
 
 			// If there is something to show on right page add it to renderer.
-			if (mCurrentIndex < mBitmapProvider.getBitmapCount()) {
+			if (mCurrentIndex < mPageProvider.getPageCount()) {
+				mPageRight.setFlipTexture(false);
 				mPageRight.setRect(mRenderer
 						.getPageRect(CurlRenderer.PAGE_RIGHT));
 				mPageRight.reset();
@@ -597,7 +603,8 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			}
 
 			// How dragging previous page happens depends on view mode.
-			if (mViewMode == SHOW_ONE_PAGE) {
+			if (mViewMode == SHOW_ONE_PAGE
+					|| (mCurlState == CURL_LEFT && mViewMode == SHOW_TWO_PAGES)) {
 				mPageCurl.setRect(mRenderer
 						.getPageRect(CurlRenderer.PAGE_RIGHT));
 				mPageCurl.setFlipTexture(false);
@@ -613,66 +620,6 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			break;
 		}
 
-		}
-	}
-
-	/**
-	 * Updates bitmaps for left and right meshes.
-	 */
-	private void updateBitmaps() {
-		if (mBitmapProvider == null || mPageBitmapWidth <= 0
-				|| mPageBitmapHeight <= 0) {
-			return;
-		}
-
-		// Remove meshes from renderer.
-		mRenderer.removeCurlMesh(mPageLeft);
-		mRenderer.removeCurlMesh(mPageRight);
-		mRenderer.removeCurlMesh(mPageCurl);
-
-		int leftIdx = mCurrentIndex - 1;
-		int rightIdx = mCurrentIndex;
-		int curlIdx = -1;
-		if (mCurlState == CURL_LEFT) {
-			curlIdx = leftIdx;
-			leftIdx--;
-		} else if (mCurlState == CURL_RIGHT) {
-			curlIdx = rightIdx;
-			rightIdx++;
-		}
-
-		if (rightIdx >= 0 && rightIdx < mBitmapProvider.getBitmapCount()) {
-			Bitmap bitmap = mBitmapProvider.getBitmap(mPageBitmapWidth,
-					mPageBitmapHeight, rightIdx);
-			mPageRight.setBitmap(bitmap);
-			mPageRight.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_RIGHT));
-			mPageRight.reset();
-			mRenderer.addCurlMesh(mPageRight);
-		}
-		if (leftIdx >= 0 && leftIdx < mBitmapProvider.getBitmapCount()) {
-			Bitmap bitmap = mBitmapProvider.getBitmap(mPageBitmapWidth,
-					mPageBitmapHeight, leftIdx);
-			mPageLeft.setBitmap(bitmap);
-			mPageLeft.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
-			mPageLeft.reset();
-			if (mRenderLeftPage) {
-				mRenderer.addCurlMesh(mPageLeft);
-			}
-		}
-		if (curlIdx >= 0 && curlIdx < mBitmapProvider.getBitmapCount()) {
-			Bitmap bitmap = mBitmapProvider.getBitmap(mPageBitmapWidth,
-					mPageBitmapHeight, curlIdx);
-			mPageCurl.setBitmap(bitmap);
-			if (mCurlState == CURL_RIGHT
-					|| (mCurlState == CURL_LEFT && mViewMode == SHOW_TWO_PAGES)) {
-				mPageCurl.setRect(mRenderer
-						.getPageRect(CurlRenderer.PAGE_RIGHT));
-			} else {
-				mPageCurl
-						.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
-			}
-			mPageCurl.reset();
-			mRenderer.addCurlMesh(mPageCurl);
 		}
 	}
 
@@ -719,11 +666,15 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			// Actual curl position calculation.
 			if (dist >= curlLen) {
 				double translate = (dist - curlLen) / 2;
-				if(mViewMode == SHOW_TWO_PAGES){
+
+				if (mViewMode == SHOW_TWO_PAGES) {
 					mCurlPos.x -= mCurlDir.x * translate / dist;
-				}else{
-					float pageLeftX = mRenderer.getPageRect(CurlRenderer.PAGE_RIGHT).left;
-					radius = Math.max(Math.min(mCurlPos.x - pageLeftX, radius), 0f);
+				} else {
+					float pageLeftX = mRenderer
+							.getPageRect(CurlRenderer.PAGE_RIGHT).left;
+					radius = Math.max(Math.min(mCurlPos.x - pageLeftX, radius),
+							0f);
+
 				}
 				mCurlPos.y -= mCurlDir.y * translate / dist;
 			} else {
@@ -744,31 +695,112 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 			mCurlPos.x -= Math.min(pageRightX - mCurlPos.x, radius);
 			mCurlDir.x = mCurlPos.x + mDragStartPos.x;
 			mCurlDir.y = mCurlPos.y - mDragStartPos.y;
+
 		}
 
 		setCurlPos(mCurlPos, mCurlDir, radius);
 	}
 
 	/**
+	 * Updates given CurlPage via PageProvider for page located at index.
+	 */
+	private void updatePage(CurlPage page, int index) {
+		// First reset page to initial state.
+		page.reset();
+		// Ask page provider to fill it up with bitmaps and colors.
+		mPageProvider.updatePage(page, mPageBitmapWidth, mPageBitmapHeight,
+				index);
+	}
+
+	/**
+	 * Updates bitmaps for page meshes.
+	 */
+	private void updatePages() {
+		if (mPageProvider == null || mPageBitmapWidth <= 0
+				|| mPageBitmapHeight <= 0) {
+			return;
+		}
+
+		// Remove meshes from renderer.
+		mRenderer.removeCurlMesh(mPageLeft);
+		mRenderer.removeCurlMesh(mPageRight);
+		mRenderer.removeCurlMesh(mPageCurl);
+
+		int leftIdx = mCurrentIndex - 1;
+		int rightIdx = mCurrentIndex;
+		int curlIdx = -1;
+		if (mCurlState == CURL_LEFT) {
+			curlIdx = leftIdx;
+			--leftIdx;
+		} else if (mCurlState == CURL_RIGHT) {
+			curlIdx = rightIdx;
+			++rightIdx;
+		}
+
+		if (rightIdx >= 0 && rightIdx < mPageProvider.getPageCount()) {
+			updatePage(mPageRight.getTexturePage(), rightIdx);
+			mPageRight.setFlipTexture(false);
+			mPageRight.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_RIGHT));
+			mPageRight.reset();
+			mRenderer.addCurlMesh(mPageRight);
+		}
+		if (leftIdx >= 0 && leftIdx < mPageProvider.getPageCount()) {
+			updatePage(mPageLeft.getTexturePage(), leftIdx);
+			mPageLeft.setFlipTexture(true);
+			mPageLeft.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
+			mPageLeft.reset();
+			if (mRenderLeftPage) {
+				mRenderer.addCurlMesh(mPageLeft);
+			}
+		}
+		if (curlIdx >= 0 && curlIdx < mPageProvider.getPageCount()) {
+			updatePage(mPageCurl.getTexturePage(), curlIdx);
+
+			if (mCurlState == CURL_RIGHT) {
+				mPageCurl.setFlipTexture(true);
+				mPageCurl.setRect(mRenderer
+						.getPageRect(CurlRenderer.PAGE_RIGHT));
+			} else {
+				mPageCurl.setFlipTexture(false);
+				mPageCurl
+						.setRect(mRenderer.getPageRect(CurlRenderer.PAGE_LEFT));
+			}
+
+			mPageCurl.reset();
+			mRenderer.addCurlMesh(mPageCurl);
+		}
+
+	}
+
+	/**
 	 * Provider for feeding 'book' with bitmaps which are used for rendering
 	 * pages.
 	 */
-	public interface BitmapProvider {
+	public interface PageProvider {
 
 		/**
-		 * Called once new bitmap is needed. Width and height are in pixels
-		 * telling the size it will be drawn on screen and following them
+		 * Return number of pages available.
+		 */
+		public int getPageCount();
+
+		/**
+		 * Called once new bitmaps/textures are needed. Width and height are in
+		 * pixels telling the size it will be drawn on screen and following them
 		 * ensures that aspect ratio remains. But it's possible to return bitmap
-		 * of any size though.<br/>
+		 * of any size though. You should use provided CurlPage for storing page
+		 * information for requested page number.<br/>
 		 * <br/>
 		 * Index is a number between 0 and getBitmapCount() - 1.
 		 */
-		public Bitmap getBitmap(int width, int height, int index);
+		public void updatePage(CurlPage page, int width, int height, int index);
+	}
 
-		/**
-		 * Return number of pages/bitmaps available.
-		 */
-		public int getBitmapCount();
+	/**
+	 * Simple holder for pointer position.
+	 */
+	private class PointerPosition {
+		PointF mPos = new PointF();
+		float mPressure;
 	}
 
 	/**
@@ -780,14 +812,6 @@ public class CurlView extends GLSurfaceView implements View.OnTouchListener,
 		 * Called once CurlView size changes.
 		 */
 		public void onSizeChanged(int width, int height);
-	}
-
-	/**
-	 * Simple holder for pointer position.
-	 */
-	private class PointerPosition {
-		PointF mPos = new PointF();
-		float mPressure;
 	}
 
 }
